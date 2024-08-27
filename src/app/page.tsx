@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import ClientProductList from './components/ClientProductList'; // Импортируем новый компонент
+import ClientProductList from './components/ClientProductList';
 
 interface Product {
     id: number;

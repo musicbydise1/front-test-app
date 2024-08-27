@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
@@ -16,9 +16,7 @@ interface Product {
 }
 
 const ClientProductList = ({ products }: { products: Product[] }) => {
-    const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
     const [page, setPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState<'price' | 'rating'>('price');
     const [lastAddedItems, setLastAddedItems] = useState<{ id: number; title: string; count: number }[]>([]);
@@ -28,44 +26,38 @@ const ClientProductList = ({ products }: { products: Product[] }) => {
     const cartItems = useSelector((state: RootState) => state.cart.items);
     const totalAmount = useSelector((state: RootState) => state.cart.totalAmount);
 
-    useEffect(() => {
-        filterAndSortProducts();
-    },[products, searchQuery, sortOption, page]);
-
-    const filterAndSortProducts = () => {
-        let filteredProducts = products.filter((product) =>
+    const displayedProducts = useMemo(() => {
+        const filteredProducts = products.filter((product) =>
             product.title.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
         if (sortOption === 'price') {
-            filteredProducts = filteredProducts.sort((a, b) => a.price - b.price);
+            return filteredProducts.sort((a, b) => a.price - b.price).slice(0, itemsPerPage * page);
         } else if (sortOption === 'rating') {
-            filteredProducts = filteredProducts.sort((a, b) => b.rating - a.rating);
+            return filteredProducts.sort((a, b) => b.rating - a.rating).slice(0, itemsPerPage * page);
         }
 
-        setDisplayedProducts(filteredProducts.slice(0, itemsPerPage * page));
-    };
+        return filteredProducts.slice(0, itemsPerPage * page);
+    }, [products, searchQuery, sortOption, page, itemsPerPage]);
 
-    const loadMoreProducts = () => {
-        setIsLoading(true);
-        setPage(page + 1);
-        setIsLoading(false);
-    };
-
-    const handleAddToCart = (product: Product) => {
+    const handleAddToCart = useCallback((product: Product) => {
         dispatch(addItem(product));
 
-        setLastAddedItems(prevItems => {
-            const existingItem = prevItems.find(item => item.id === product.id);
+        setLastAddedItems((prevItems) => {
+            const existingItem = prevItems.find((item) => item.id === product.id);
             if (existingItem) {
-                return prevItems.map(item =>
+                return prevItems.map((item) =>
                     item.id === product.id ? { ...item, count: item.count + 1 } : item
                 );
             } else {
                 return [...prevItems, { id: product.id, title: product.title, count: 1 }];
             }
         });
-    };
+    }, [dispatch]);
+
+    const loadMoreProducts = useCallback(() => {
+        setPage(prevPage => prevPage + 1);
+    }, []);
 
     const isAllProductsLoaded = displayedProducts.length >= products.length;
 
@@ -78,13 +70,13 @@ const ClientProductList = ({ products }: { products: Product[] }) => {
                         placeholder="Search products..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm w-full md:w-1/2 mb-4 md:mb-0"
+                        className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm w-full md:w-1/2 mb-4 md:mb-0 text-gray-800"
                     />
                     <div className="relative w-full md:w-auto">
                         <select
                             value={sortOption}
                             onChange={(e) => setSortOption(e.target.value as 'price' | 'rating')}
-                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm w-full md:w-auto appearance-none pr-8"
+                            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm w-full md:w-auto appearance-none pr-8 text-gray-800"
                         >
                             <option value="price">Sort by Price</option>
                             <option value="rating">Sort by Rating</option>
@@ -97,15 +89,16 @@ const ClientProductList = ({ products }: { products: Product[] }) => {
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32">
-                    {displayedProducts.map((product) => (
+                    {displayedProducts.map((product, index) => (
                         <div key={product.id} className="p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
                             <div className="relative w-full h-64 mb-4">
                                 <Image
                                     src={product.thumbnail}
                                     alt={product.title}
-                                    layout="fill"
-                                    objectFit="cover"
-                                    className="rounded-lg"
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                    className="rounded-lg object-cover"
+                                    priority={index < 3} // Добавлен приоритет для первых трех изображений
                                 />
                             </div>
                             <h3 className="text-lg font-semibold mb-2 text-gray-800">{product.title}</h3>
